@@ -9,7 +9,7 @@ from trainscanner import ledger
 from trainscanner.config import settings
 from trainscanner.routes.stripe_webhook import PAID_JOURNEYS
 
-SECRET = "whsec_test"
+SECRET = "webhook-signing-value"
 URL = "/api/stripe/webhook"
 
 
@@ -53,7 +53,9 @@ def test_webhook_requires_secret(client):
 
 def test_webhook_rejects_bad_signature(client, webhook_secret):
     payload = _event("checkout.session.completed")
-    r = client.post(URL, content=payload, headers={"stripe-signature": _sign(payload, "whsec_other")})
+    r = client.post(
+        URL, content=payload, headers={"stripe-signature": _sign(payload, "another-signing-value")}
+    )
     assert r.status_code == 400
     assert PAID_JOURNEYS == {}
 

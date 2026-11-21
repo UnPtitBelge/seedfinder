@@ -12,9 +12,9 @@ def test_health(client):
 def test_public_config_exposes_only_publishable_key(client, monkeypatch):
     from trainscanner.config import settings
 
-    monkeypatch.setattr(settings, "vite_stripe_publishable_key", "pk_test_x")
-    monkeypatch.setattr(settings, "stripe_secret_key", "sk_test_secret")
-    assert client.get("/api/config").json() == {"stripe_publishable_key": "pk_test_x"}
+    monkeypatch.setattr(settings, "vite_stripe_publishable_key", "publishable-key-for-tests")
+    monkeypatch.setattr(settings, "stripe_secret_key", "server-only-value")
+    assert client.get("/api/config").json() == {"stripe_publishable_key": "publishable-key-for-tests"}
 
 
 def test_unknown_api_route_is_404_not_spa(client):

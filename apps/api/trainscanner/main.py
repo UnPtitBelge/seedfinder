@@ -1,8 +1,11 @@
 """FastAPI entrypoint — router wiring only. Run: uv run uvicorn trainscanner.main:app --reload"""
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
+from starlette.types import Scope
 
 from .config import WEB_DIST, settings
 from .models import PublicConfig
@@ -34,15 +37,18 @@ for r in (account, stations, journeys, stays, network, checkout, stripe_webhook)
 
 
 # Production: the same process serves the built frontend (single origin, no CORS, one service to deploy).
-if WEB_DIST.is_dir():
-    _root = WEB_DIST.resolve()
-    # Allow-list built at startup: a request path is only a dictionary key, never joined into a filesystem
-    # path, so nothing outside the build can be read (no path traversal / file inclusion).
-    _FILES = {p.relative_to(_root).as_posix(): p for p in _root.rglob("*") if p.is_file()}
-    _INDEX = _root / "index.html"
+class _SPAFiles(StaticFiles):
+    """Starlette StaticFiles (the framework blocks path traversal) with an index.html fallback, so client-side
+    routes like /map load the app. Unknown /api/* paths stay 404."""
 
-    @app.get("/{path:path}", include_in_schema=False)
-    def spa(path: str) -> FileResponse:
-        if path.startswith("api/"):
-            raise HTTPException(404, "not found")
-        return FileResponse(_FILES.get(path, _INDEX))
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as e:
+            if e.status_code != 404 or path.startswith("api"):
+                raise
+            return await super().get_response("index.html", scope)
+
+
+if WEB_DIST.is_dir():
+    app.mount("/", _SPAFiles(directory=WEB_DIST, html=True), name="spa")
